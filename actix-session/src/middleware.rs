@@ -336,24 +336,27 @@ fn extract_session_key(req: &ServiceRequest, config: &CookieConfiguration) -> Op
         CookieContentSecurity::Private => jar.private(&config.key).get(&config.name),
     };
 
-    if verification_result.is_none() {
-        tracing::warn!(
-            "The session cookie attached to the incoming request failed to pass cryptographic \
-            checks (signature verification/decryption)."
-        );
-    }
-
-    match verification_result?.value().to_owned().try_into() {
-        Ok(session_key) => Some(session_key),
-        Err(err) => {
+    match verification_result {
+        None => {
             tracing::warn!(
-                error.message = %err,
-                error.cause_chain = ?err,
-                "Invalid session key, ignoring."
+                "The session cookie attached to the incoming request failed to pass cryptographic \
+                checks (signature verification/decryption)."
             );
 
             None
         }
+        Some(value) => match value.value().to_owned().try_into() {
+            Ok(session_key) => Some(session_key),
+            Err(err) => {
+                tracing::warn!(
+                    error.message = %err,
+                    error.cause_chain = ?err,
+                    "Invalid session key, ignoring."
+                );
+
+                None
+            }
+        },
     }
 }
 
